@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: digital-ledger-backend
+  namespace: production
+  labels:
+    app: digital-ledger-backend
+    maintainer: lodule
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: digital-ledger-backend
+  template:
+    metadata:
+      labels:
+        app: digital-ledger-backend
+    spec:
+      containers:
+        - name: api-service
+          image: ghcr.io/lodule/digital-ledger-backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: EMAIL_SERVICE
+              value: "Loops"
+            - name: LOOPS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: loops-secret
+                  key: api-key
+            - name: ADMIN_EMAIL
+              value: "simonlodule18@gmail.com"
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: digital-ledger-service
+  namespace: production
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: digital-ledger-backend
