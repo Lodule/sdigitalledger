@@ -19,6 +19,7 @@ import com.sdigitalledger.analytics.AnalyticsManager
 import com.sdigitalledger.network.LoopsEmailService
 import com.sdigitalledger.ui.*
 import com.sdigitalledger.ui.theme.SdigitalledgerTheme
+import com.sdigitalledger.utils.PremiumManager
 import com.sdigitalledger.viewmodel.DebtorViewModel
 import com.sdigitalledger.viewmodel.InventoryViewModel
 import com.sdigitalledger.viewmodel.SalesViewModel
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity() {
 fun MainScreen() {
     val context = LocalContext.current
     val app = context.applicationContext as DigitalLedgerApplication
+    val premiumManager = remember { PremiumManager(context) }
     val analytics = remember { AnalyticsManager.getInstance(context) }
     val loopsService = remember { LoopsEmailService(context) }
     val scope = rememberCoroutineScope()
@@ -68,8 +70,9 @@ fun MainScreen() {
     )
 
     var selectedTab by remember { mutableIntStateOf(1) } // Default to Sales / Dashboard
-    var isPremium by remember { mutableStateOf(false) } // Freemium model (false = free with ads, true = premium)
+    var isPremium by remember { mutableStateOf(premiumManager.isPremium) }
     var showFeedbackDialog by remember { mutableStateOf(false) }
+    var showPaymentDialog by remember { mutableStateOf(false) }
 
     val tabs = listOf("Inventory", "Sales / Dashboard", "Debtors")
     val icons = listOf(Icons.AutoMirrored.Filled.List, Icons.Default.ShoppingCart, Icons.Default.Person)
@@ -83,14 +86,15 @@ fun MainScreen() {
                     IconButton(onClick = { showFeedbackDialog = true }) {
                         Icon(Icons.Default.Star, contentDescription = "Feedback Board")
                     }
-                    // Freemium Mode Switch Button
+                    // Freemium Upgrade / Mobile Money Payment Button
                     TextButton(onClick = {
-                        isPremium = !isPremium
-                        val modeText = if (isPremium) "Switched to Premium (No Ads)" else "Switched to Free Version (AdMob Ads)"
-                        Toast.makeText(context, modeText, Toast.LENGTH_SHORT).show()
-                        if (isPremium) analytics.logPremiumUpgrade()
+                        if (!isPremium) {
+                            showPaymentDialog = true
+                        } else {
+                            Toast.makeText(context, "You are currently on Digital Ledger Pro (UGX 5,000/Mo)", Toast.LENGTH_SHORT).show()
+                        }
                     }) {
-                        Text(if (isPremium) "PRO" else "UPGRADE", color = MaterialTheme.colorScheme.primary)
+                        Text(if (isPremium) "PRO 👑" else "UPGRADE", color = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -118,12 +122,13 @@ fun MainScreen() {
                     salesViewModel = salesViewModel,
                     inventoryViewModel = inventoryViewModel,
                     isPremium = isPremium,
-                    onUpgradeClick = { isPremium = true }
+                    onUpgradeClick = { showPaymentDialog = true }
                 )
                 2 -> DebtorScreen(debtorViewModel)
             }
         }
 
+        // Feedback Board Dialog
         if (showFeedbackDialog) {
             FeedbackBoardDialog(
                 onDismiss = { showFeedbackDialog = false },
@@ -139,6 +144,19 @@ fun MainScreen() {
                             )
                         }
                     }
+                }
+            )
+        }
+
+        // Mobile Money Payment Dialog (UGX 5,000 / Month)
+        if (showPaymentDialog) {
+            MobileMoneyPaymentDialog(
+                onDismiss = { showPaymentDialog = false },
+                onPaymentSuccess = {
+                    premiumManager.grantPremiumAccess()
+                    isPremium = true
+                    analytics.logPremiumUpgrade()
+                    Toast.makeText(context, "Welcome to Digital Ledger Pro!", Toast.LENGTH_LONG).show()
                 }
             )
         }
